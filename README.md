@@ -13,7 +13,12 @@ A standalone Python package for calculating ensemble uncertainty from MACE (Mult
 ## Installation
 
 ```bash
-# Install from source
+# Install from GitHub (after uploading)
+pip install git+https://github.com/lianxiliang/mace-model-deviation.git
+
+# Or install from source
+git clone https://github.com/lianxiliang/mace-model-deviation.git
+cd mace-model-deviation
 pip install -e .
 
 # Or install dependencies manually
