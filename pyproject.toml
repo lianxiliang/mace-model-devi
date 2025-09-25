@@ -36,9 +36,9 @@ cuda = ["torch>=1.11.0+cu117"]
 dev = ["pytest>=6.0", "black", "isort", "mypy"]
 
 [project.urls]
-Homepage = "https://github.com/lianxiliang/mace-model-deviation"
-Repository = "https://github.com/lianxiliang/mace-model-deviation"
-Issues = "https://github.com/lianxiliang/mace-model-deviation/issues"
+Homepage = "https://github.com/lianxiliang/ai2-kit"
+Repository = "https://github.com/lianxiliang/ai2-kit"
+Issues = "https://github.com/lianxiliang/ai2-kit/issues"
 
 [project.scripts]
 mace-model-devi = "mace_model_deviation.cli:main"
