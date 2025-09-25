@@ -22,11 +22,11 @@ Examples:
   # Basic usage
   mace-model-devi --models model1.pt model2.pt model3.pt --traj trajectory.xyz --output model_devi.out
 
-  # With GPU device specification
-  mace-model-devi --models *.pt --traj traj.lammpstrj --output results.out --device cuda
+  # With GPU device specification and CuEq acceleration
+  mace-model-devi --models *.pt --traj traj.lammpstrj --output results.out --device cuda --enable-cueq
 
-  # With type mapping
-  mace-model-devi --models *.pt --traj trajectory.xyz --output model_devi.out --type-map O,H
+  # With type mapping and float32 precision
+  mace-model-devi --models *.pt --traj trajectory.xyz --output model_devi.out --type-map O,H --default-dtype float32
         """
     )
     
@@ -69,10 +69,17 @@ Examples:
     )
     
     parser.add_argument(
-        '--chunk-size',
-        type=int,
-        default=100,
-        help='Number of frames to process at once (default: 100)'
+        '--enable-cueq',
+        action='store_true',
+        default=False,
+        help='Enable CuEq acceleration for faster inference (requires cupy and e3nn-jax)'
+    )
+    
+    parser.add_argument(
+        '--default-dtype',
+        default='float64',
+        choices=['float32', 'float64'],
+        help='Default data type for torch calculations (default: float64)'
     )
     
     parser.add_argument(
@@ -106,6 +113,9 @@ def main() -> int:
         logger.info(f"Trajectory: {args.traj}")
         logger.info(f"Output: {args.output}")
         logger.info(f"Device: {args.device}")
+        logger.info(f"Default dtype: {args.default_dtype}")
+        if args.enable_cueq:
+            logger.info("CuEq acceleration: ENABLED")
         
         # Parse type map
         type_map = None
@@ -121,7 +131,8 @@ def main() -> int:
             type_map=type_map,
             device=args.device,
             batch_size=args.batch_size,
-            chunk_size=args.chunk_size,
+            default_dtype=args.default_dtype,
+            enable_cueq=args.enable_cueq,
         )
         
         logger.info(f"✅ MACE model deviation calculation completed successfully!")

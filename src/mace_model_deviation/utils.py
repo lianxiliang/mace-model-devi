@@ -12,7 +12,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def load_mace_models(model_files: List[str], device: str = 'cuda', default_dtype: str = 'float64') -> List[torch.nn.Module]:
+def load_mace_models(
+    model_files: List[str], 
+    device: str = 'cuda', 
+    default_dtype: str = 'float64',
+    enable_cueq: bool = False
+) -> List[torch.nn.Module]:
     """
     Load MACE models from file paths following the reference implementation
     
@@ -20,6 +25,7 @@ def load_mace_models(model_files: List[str], device: str = 'cuda', default_dtype
         model_files: List of paths to MACE model files
         device: Device to load models on
         default_dtype: Default data type for torch ('float32', 'float64')
+        enable_cueq: Enable CuEq acceleration (requires cupy and e3nn-jax)
         
     Returns:
         List of loaded MACE models
@@ -44,6 +50,29 @@ def load_mace_models(model_files: List[str], device: str = 'cuda', default_dtype
             # Load model using torch.load (following reference implementation)
             model = torch.load(f=model_file, map_location=torch_device)
             
+            # Validate model was loaded successfully
+            if model is None:
+                raise RuntimeError(f"Model file {model_file} loaded as None")
+            
+            # Apply CuEq acceleration if requested (following eval_configs.py)
+            if enable_cueq:
+                logger.info("Converting model to CuEq for acceleration")
+                try:
+                    from mace.cli.convert_e3nn_cueq import run as run_e3nn_to_cueq
+                    # Convert torch.device to string for CuEq function
+                    device_str = str(torch_device)
+                    cueq_model = run_e3nn_to_cueq(model, device=device_str)
+                    if cueq_model is not None:
+                        model = cueq_model
+                    else:
+                        logger.warning("CuEq conversion returned None, using original model")
+                except ImportError as e:
+                    logger.warning(f"CuEq acceleration not available (missing dependencies): {e}")
+                    logger.warning("Continuing without CuEq acceleration")
+                except Exception as e:
+                    logger.warning(f"Failed to apply CuEq acceleration: {e}")
+                    logger.warning("Continuing without CuEq acceleration")
+            
             # Ensure model is in the right dtype
             if default_dtype == 'float64':
                 model = model.double()
@@ -51,6 +80,7 @@ def load_mace_models(model_files: List[str], device: str = 'cuda', default_dtype
                 model = model.float()
             
             # Set model to evaluation mode and move to device
+            # (this line helps with CUDA problems as noted in eval_configs.py)
             model = model.to(torch_device)
             model.eval()
             

@@ -22,8 +22,8 @@ def calculate_mace_model_deviation(
     type_map: Optional[List[str]] = None,
     device: str = 'cuda',
     batch_size: int = 64,
-    chunk_size: int = 1000,
-    default_dtype: str = 'float64'
+    default_dtype: str = 'float64',
+    enable_cueq: bool = False
 ) -> str:
     """
     Calculate MACE model deviation using DeepMD strategy
@@ -40,9 +40,9 @@ def calculate_mace_model_deviation(
         output_file: Path to output model_devi.out file
         type_map: Optional list of element symbols for type mapping
         device: Device for calculation ('cuda', 'cpu', 'mps')
-        batch_size: Batch size for model inference
-        chunk_size: Number of frames to process at once
+        batch_size: Batch size for DataLoader (controls memory usage)
         default_dtype: Default data type for torch ('float32', 'float64')
+        enable_cueq: Enable CuEq acceleration for faster inference
         
     Returns:
         Path to output file
@@ -66,8 +66,6 @@ def calculate_mace_model_deviation(
         raise ValueError("Output file path is required")
     
     logger.info(f"Calculating MACE model deviation with {len(model_files)} models on device: {device}")
-    logger.info(f"Processing trajectory: {trajectory_file}")
-    logger.info(f"Output: {output_file}")
     
     if not os.path.exists(trajectory_file):
         raise FileNotFoundError(f"Trajectory file not found: {trajectory_file}")
@@ -81,8 +79,8 @@ def calculate_mace_model_deviation(
     try:
         import torch
         from mace import data
-        from mace.tools import torch_tools, utils
-        logger.info("MACE package found - using direct torch evaluation approach")
+        from mace.tools import torch_tools, utils, torch_geometric
+        logger.info("MACE package found - using proper MACE evaluation approach")
     except ImportError as e:
         logger.error(f"MACE package not found: {e}")
         logger.error("Cannot calculate model deviation without MACE - this is required for MACE workflows")
@@ -94,21 +92,21 @@ def calculate_mace_model_deviation(
         # Set up torch configuration following MACE eval_configs.py style
         torch_tools.set_default_dtype(default_dtype)
         
-        # Validate device
-        device = _validate_device(device)
+        # Validate device - use MACE's device initialization
+        device_obj = torch_tools.init_device(device)
+        device_str = str(device_obj).replace('cuda:', 'cuda')  # Convert to string for compatibility
         
-        # Load MACE models
-        models = load_mace_models(model_files, device=device, default_dtype=default_dtype)
-        logger.info(f"Loaded {len(models)} MACE models on {device}")
+        # Load MACE models with optional CuEq acceleration
+        models = load_mace_models(model_files, device=device_str, default_dtype=default_dtype, enable_cueq=enable_cueq)
+        logger.info(f"Loaded {len(models)} MACE models on {device_obj}")
         
         # Read trajectory
         frames = read_trajectory(trajectory_file, type_map)
         logger.info(f"Read {len(frames)} frames from trajectory")
         
-        # Calculate model deviations
-        deviations = _calculate_frame_deviations(
-            models, frames, device=device, 
-            batch_size=batch_size, chunk_size=chunk_size
+        # Calculate model deviations using proper MACE pipeline
+        deviations = _calculate_frame_deviations_mace(
+            models, frames, device=device_obj, batch_size=batch_size
         )
         
         # Write results
@@ -141,26 +139,26 @@ def _validate_device(device: str) -> str:
         return 'cpu'
 
 
-def _calculate_frame_deviations(
+def _calculate_frame_deviations_mace(
     models: List[torch.nn.Module],
     frames: List[Atoms],
-    device: str = 'cuda',
-    batch_size: int = 1,
-    chunk_size: int = 100,
+    device: torch.device,
+    batch_size: int = 64,
 ) -> List[Dict[str, float]]:
     """
-    Calculate model deviations for trajectory frames
+    Calculate model deviations for trajectory frames using proper MACE pipeline
     
     Args:
         models: List of loaded MACE models
         frames: List of ASE Atoms objects
         device: Device for calculation
-        batch_size: Batch size for inference
-        chunk_size: Process frames in chunks to manage memory
+        batch_size: Batch size for DataLoader (controls memory usage)
         
     Returns:
         List of deviation statistics per frame (DeepMD format)
     """
+    from mace import data
+    from mace.tools import torch_geometric, utils, torch_tools
     
     n_frames = len(frames)
     all_energies = []
@@ -170,53 +168,59 @@ def _calculate_frame_deviations(
     for model_idx, model in enumerate(models):
         logger.info(f"Evaluating model {model_idx + 1}/{len(models)}")
         
+        # Extract model properties (exactly like eval_configs.py)
+        z_table = utils.AtomicNumberTable([int(z) for z in model.atomic_numbers])  # type: ignore[attr-defined]
+        cutoff = float(model.r_max)  # type: ignore[attr-defined,arg-type]
+        
+        try:
+            heads = model.heads  # type: ignore[attr-defined] 
+        except AttributeError:
+            heads = None
+            
+        logger.info(f"Model properties - atomic numbers: {z_table.zs}, cutoff: {cutoff}, heads: {heads}")
+        
+        # Convert ASE atoms to MACE configurations (following eval_configs.py exactly)
+        configs = [data.config_from_atoms(atoms) for atoms in frames]
+        
+        # Create MACE DataLoader for all frames at once (no chunking - MACE standard)
+        data_loader = torch_geometric.dataloader.DataLoader(
+            dataset=[  # type: ignore[arg-type]  # MACE standard: list of AtomicData
+                data.AtomicData.from_config(
+                    config, z_table=z_table, cutoff=cutoff, heads=heads  # type: ignore[arg-type]
+                )
+                for config in configs
+            ],
+            batch_size=batch_size,
+            shuffle=False,
+            drop_last=False,
+        )
+        
+        # Collect model outputs (following eval_configs.py pattern)
         model_energies = []
         model_forces = []
         
-        # Process frames in chunks
-        for chunk_start in range(0, n_frames, chunk_size):
-            chunk_end = min(chunk_start + chunk_size, n_frames)
-            chunk_frames = frames[chunk_start:chunk_end]
+        for batch in data_loader:
+            batch = batch.to(device)
             
-            logger.info(f"Processing frames {chunk_start+1}-{chunk_end}/{n_frames}")
-            
-            for i, atoms in enumerate(chunk_frames):
-                try:
-                    # Get ensemble predictions using simplified interface
-                    with torch.no_grad():
-                        # Convert ASE atoms to MACE format
-                        batch_data = _atoms_to_mace_batch(atoms, device)
-                        
-                        # Get model prediction
-                        output = model(batch_data)
-                        
-                        # Extract energy and forces
-                        if 'energy' in output:
-                            energy = output['energy']
-                            if isinstance(energy, torch.Tensor):
-                                energy = energy.cpu().numpy().item()
-                            model_energies.append(float(energy))
-                        else:
-                            model_energies.append(0.0)
-                            
-                        if 'forces' in output:
-                            forces = output['forces']
-                            if isinstance(forces, torch.Tensor):
-                                forces = forces.cpu().numpy()
-                            model_forces.append(forces)
-                        else:
-                            logger.warning("Model output does not contain 'forces' key")
-                            model_forces.append(np.zeros_like(atoms.positions))
-                            
-                except Exception as e:
-                    logger.warning(f"Failed to process frame {chunk_start + i}: {e}")
-                    model_energies.append(0.0)
-                    model_forces.append(np.zeros_like(atoms.positions))
+            with torch.no_grad():
+                # Get model output - proper MACE interface
+                output = model(batch.to_dict())
+                
+                # Extract energies and forces (same as eval_configs.py)
+                energies = torch_tools.to_numpy(output["energy"])
+                forces = np.split(
+                    torch_tools.to_numpy(output["forces"]),
+                    indices_or_sections=batch.ptr[1:],
+                    axis=0,
+                )[:-1]  # drop last as it's empty
+                
+                model_energies.extend(energies)
+                model_forces.extend(forces)
         
         all_energies.append(model_energies)
         all_forces.append(model_forces)
     
-    # Calculate deviations
+    # Calculate deviations using DeepMD methodology
     frame_deviations = []
     all_energies = np.array(all_energies)  # Shape: (n_models, n_frames)
     
@@ -266,30 +270,3 @@ def _calculate_frame_deviations(
             logger.info(f"Processed {frame_idx + 1}/{len(frames)} frames")
     
     return frame_deviations
-
-
-
-def _atoms_to_mace_batch(atoms: Atoms, device: str) -> Dict[str, torch.Tensor]:
-    """
-    Convert ASE Atoms to MACE model input format
-    
-    Note: This is a simplified implementation. The actual MACE model
-    interface may require different input format/keys.
-    """
-    
-    # Basic conversion - may need adjustment based on specific MACE model format
-    positions = torch.tensor(atoms.positions, dtype=torch.float32, device=device)
-    atomic_numbers = torch.tensor(atoms.numbers, dtype=torch.long, device=device)
-    
-    batch_data = {
-        'positions': positions.unsqueeze(0),  # Add batch dimension
-        'atomic_numbers': atomic_numbers.unsqueeze(0),  # Add batch dimension
-        'ptr': torch.tensor([0, len(atoms)], dtype=torch.long, device=device),
-    }
-    
-    # Add cell information if periodic
-    if atoms.pbc.any():
-        cell = torch.tensor(atoms.cell.array, dtype=torch.float32, device=device)
-        batch_data['cell'] = cell.unsqueeze(0)  # Add batch dimension
-    
-    return batch_data
