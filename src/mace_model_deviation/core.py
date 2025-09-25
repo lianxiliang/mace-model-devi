@@ -206,7 +206,7 @@ def _calculate_frame_deviations_mace(
                 # Get model output - proper MACE interface
                 output = model(batch.to_dict())
                 
-                # Extract energies and forces (same as eval_configs.py)
+                # Extract energies and forces 
                 energies = torch_tools.to_numpy(output["energy"])
                 forces = np.split(
                     torch_tools.to_numpy(output["forces"]),
