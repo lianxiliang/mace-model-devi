@@ -91,7 +91,7 @@ Examples:
     return parser.parse_args()
 
 
-def main() -> None:
+def main() -> int:
     """Main CLI entry point"""
     
     try:
