@@ -20,13 +20,13 @@ def parse_arguments() -> argparse.Namespace:
         epilog="""
 Examples:
   # Basic usage
-  mace-model-devi --models model1.pt model2.pt model3.pt --traj trajectory.xyz --output model_devi.out
+  mace-model-devi --models model1.model model2.model model3.model --traj trajectory.xyz --output model_devi.out
 
   # With GPU device specification and CuEq acceleration
-  mace-model-devi --models *.pt --traj traj.lammpstrj --output results.out --device cuda --enable-cueq
+  mace-model-devi --models *.model --traj traj.lammpstrj --output results.out --device cuda --enable-cueq
 
   # With type mapping and float32 precision
-  mace-model-devi --models *.pt --traj trajectory.xyz --output model_devi.out --type-map O,H --default-dtype float32
+  mace-model-devi --models *.model --traj trajectory.xyz --output model_devi.out --type-map O,H --default-dtype float32
         """
     )
     
@@ -34,7 +34,7 @@ Examples:
         '--models',
         nargs='+',
         required=True,
-        help='MACE model files (.pt format). Can use wildcards or space-separated list.'
+        help='MACE model files (.model format). Can use wildcards or space-separated list.'
     )
     
     parser.add_argument(

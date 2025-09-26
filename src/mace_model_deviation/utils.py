@@ -176,7 +176,7 @@ def write_model_deviation(frame_deviations: List[Dict[str, float]], output_file:
         
         with open(output_file, 'w') as f:
             # Write header in DeepMD format - keep 'devi_v' for compatibility (represents energy deviation for MACE)
-            f.write('#       step         max_devi_v         min_devi_v         avg_devi_v         max_devi_f         min_devi_f         avg_devi_f\n')
+            f.write('#        step     max_devi_v     min_devi_v     avg_devi_v     max_devi_f     min_devi_f     avg_devi_f\n')
             
             # Write data
             for frame_idx, frame_deviation in enumerate(frame_deviations):

@@ -202,20 +202,22 @@ def _calculate_frame_deviations_mace(
         for batch in data_loader:
             batch = batch.to(device)
             
-            with torch.no_grad():
-                # Get model output - proper MACE interface
-                output = model(batch.to_dict())
-                
-                # Extract energies and forces 
-                energies = torch_tools.to_numpy(output["energy"])
-                forces = np.split(
-                    torch_tools.to_numpy(output["forces"]),
-                    indices_or_sections=batch.ptr[1:],
-                    axis=0,
-                )[:-1]  # drop last as it's empty
-                
-                model_energies.extend(energies)
-                model_forces.extend(forces)
+            # Enable gradient computation for force calculation
+            batch.positions.requires_grad_(True)
+            
+            # Get model output - proper MACE interface
+            output = model(batch.to_dict())
+            
+            # Extract energies and forces 
+            energies = torch_tools.to_numpy(output["energy"])
+            forces = np.split(
+                torch_tools.to_numpy(output["forces"]),
+                indices_or_sections=batch.ptr[1:],
+                axis=0,
+            )[:-1]  # drop last as it's empty
+            
+            model_energies.extend(energies)
+            model_forces.extend(forces)
         
         all_energies.append(model_energies)
         all_forces.append(model_forces)
