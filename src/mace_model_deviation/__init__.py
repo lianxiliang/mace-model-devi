@@ -6,7 +6,7 @@ Follows DeepMD methodology and integrates seamlessly with AI2Kit workflows.
 """
 
 __version__ = "0.1.0"
-__author__ = "AI2-Kit Contributors"
+__author__ = "Xiliang LIAN"
 
 from .core import calculate_mace_model_deviation
 from .utils import load_mace_models, read_trajectory, write_model_deviation

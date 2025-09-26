@@ -2,6 +2,8 @@
 Core MACE model deviation calculation functions
 
 Implementation following MACE's eval_configs.py patterns for proper model evaluation.
+
+Author: Xiliang LIAN
 """
 
 import logging

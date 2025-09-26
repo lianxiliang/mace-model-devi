@@ -7,7 +7,8 @@ name = "mace-model-deviation"
 version = "0.1.0"
 description = "Standalone MACE model ensemble uncertainty calculation"
 authors = [
-    {name = "AI2-Kit Contributors"}
+    {name = "Xiliang LIAN", email = "xilianglian@gmail.com"},
+
 ]
 license = {text = "MIT"}
 readme = "README.md"

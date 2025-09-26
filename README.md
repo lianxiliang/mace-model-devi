@@ -111,6 +111,15 @@ COPY mace-model-deviation /opt/mace-model-deviation
 RUN pip install -e /opt/mace-model-deviation
 ```
 
+## Authors
+
+- **Xiliang LIAN** - *Initial development and MACE integration*
+- **AI2-Kit Contributors** - *Framework and methodology*
+
+## Credits
+
+The work is based on the original mace eval_configs.py, which evaluates the configurations
+
 ## License
 
 MIT License - see LICENSE file for details.
