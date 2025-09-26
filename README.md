@@ -4,25 +4,26 @@ A standalone Python package for calculating ensemble uncertainty from MACE (Mult
 
 ## Features
 
-- **Standalone**: No dependency on ai2-kit or other frameworks
+- **Standalone**: Independent package with minimal dependencies
 - **Fast**: Optimized for GPU calculation with CUDA support
 - **Flexible**: Works with any MACE models and trajectory formats
-- **Memory Efficient**: Processes trajectories in chunks
+- **Memory Efficient**: Uses MACE's native DataLoader for optimal batching
 - **Easy Integration**: Simple pip install for any project
+- **DeepMD Compatible**: Outputs standard model deviation format
 
 ## Installation
 
 ```bash
-# Install from GitHub (after uploading)
-pip install git+https://github.com/lianxiliang/mace-model-deviation.git
+# Install from GitHub
+pip install git+https://github.com/lianxiliang/mace-model-devi.git
 
 # Or install from source
-git clone https://github.com/lianxiliang/mace-model-deviation.git
-cd mace-model-deviation
+git clone https://github.com/lianxiliang/mace-model-devi.git
+cd mace-model-devi
 pip install -e .
 
-# Or install dependencies manually
-pip install torch ase numpy
+# For development
+pip install -e .[dev]
 ```
 
 ## Usage
@@ -31,16 +32,23 @@ pip install torch ase numpy
 
 ```bash
 # Basic usage
-mace-model-devi --models model1.pt model2.pt model3.pt \
+mace-model-devi --models model1.model model2.model model3.model \
                 --traj trajectory.xyz \
                 --output model_devi.out
 
 # With GPU and type mapping
-mace-model-devi --models *.pt \
+mace-model-devi --models *.model \
                 --traj traj.lammpstrj \
                 --output results.out \
                 --device cuda \
                 --type-map O,H
+
+# With batch size optimization
+mace-model-devi --models *.model \
+                --traj trajectory.xyz \
+                --output model_devi.out \
+                --batch-size 32 \
+                --device cpu
 ```
 
 ### Python API
@@ -50,10 +58,11 @@ from mace_model_deviation import calculate_mace_model_deviation
 
 # Calculate model deviation
 output_file = calculate_mace_model_deviation(
-    model_files=['model1.pt', 'model2.pt', 'model3.pt'],
+    model_files=['model1.model', 'model2.model', 'model3.model'],
     trajectory_file='trajectory.xyz',
     output_file='model_devi.out',
-    device='cuda'
+    device='cuda',
+    batch_size=64
 )
 ```
 
@@ -68,14 +77,18 @@ mace_cmd = f'mace-model-devi --models "{models}" --traj traj.lammpstrj --output 
 
 ## Output Format
 
-The output file contains frame-by-frame maximum force deviations:
+The output file follows DeepMD model deviation format with energy and force deviations:
 
 ```
-# Frame  Max_Force_Devi
-     0      0.123456
-     1      0.234567
-     2      0.345678
+#        step     max_devi_v     min_devi_v     avg_devi_v     max_devi_f     min_devi_f     avg_devi_f
+           0   3.184592e-03   3.184592e-03   3.184592e-03   1.132804e-02   8.073725e-03   1.014817e-02
+           1   3.442520e-03   3.442520e-03   3.442520e-03   1.424466e-02   4.970430e-03   1.107935e-02
+           2   3.697712e-03   3.697712e-03   3.697712e-03   1.214610e-02   6.534542e-03   8.718190e-03
 ```
+
+Where:
+- `max/min/avg_devi_v`: Energy deviation statistics (used as virial proxy)
+- `max/min/avg_devi_f`: Force deviation statistics per atom
 
 ## Requirements
 
@@ -83,6 +96,7 @@ The output file contains frame-by-frame maximum force deviations:
 - PyTorch ≥ 1.11.0
 - ASE ≥ 3.22.0
 - NumPy ≥ 1.21.0
+- MACE-torch ≥ 0.3.0
 
 ## Container Usage
 

@@ -7,28 +7,31 @@ name = "mace-model-deviation"
 version = "0.1.0"
 description = "Standalone MACE model ensemble uncertainty calculation"
 authors = [
-    {name = "AI2-Kit Contributors", email = "your-email@example.com"}
+    {name = "AI2-Kit Contributors"}
 ]
 license = {text = "MIT"}
 readme = "README.md"
 requires-python = ">=3.8"
 classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Science/Research",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research", 
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Chemistry",
     "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
 dependencies = [
     "torch>=1.11.0",
     "ase>=3.22.0",
     "numpy>=1.21.0",
+    "mace-torch>=0.3.0",
 ]
 
 [project.optional-dependencies]
@@ -36,9 +39,9 @@ cuda = ["torch>=1.11.0"]
 dev = ["pytest>=6.0", "black", "isort", "mypy"]
 
 [project.urls]
-Homepage = "https://github.com/lianxiliang/ai2-kit"
-Repository = "https://github.com/lianxiliang/ai2-kit"
-Issues = "https://github.com/lianxiliang/ai2-kit/issues"
+Homepage = "https://github.com/lianxiliang/mace-model-devi"
+Repository = "https://github.com/lianxiliang/mace-model-devi"
+Issues = "https://github.com/lianxiliang/mace-model-devi/issues"
 
 [project.scripts]
 mace-model-devi = "mace_model_deviation.cli:main"

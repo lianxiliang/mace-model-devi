@@ -1,16 +1,23 @@
 """
 Core MACE model deviation calculation functions
 
-Comprehensive implementation matching ai2-kit functionality
+Implementation following MACE's eval_configs.py patterns for proper model evaluation.
 """
 
+import logging
 import os
+from typing import Dict, List, Optional
+
 import numpy as np
 import torch
-from typing import List, Optional, Dict, Any
-import ase.io
 from ase import Atoms
-import logging
+
+# Import MACE dependencies at module level
+try:
+    from mace import data
+    from mace.tools import torch_tools, utils, torch_geometric
+except ImportError as e:
+    raise ImportError(f"MACE packages required for model deviation calculation: {e}")
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +42,7 @@ def calculate_mace_model_deviation(
     4. Write results in DeepMD model_devi.out format
     
     Args:
-        model_files: List of paths to MACE model files (.pt format)
+        model_files: List of paths to MACE model files (.model format)
         trajectory_file: Path to trajectory file (ASE-readable format)
         output_file: Path to output model_devi.out file
         type_map: Optional list of element symbols for type mapping
@@ -55,36 +62,12 @@ def calculate_mace_model_deviation(
     # Input validation
     if not model_files:
         raise ValueError("No model files provided")
-    
     if len(model_files) < 2:
         raise ValueError(f"Need at least 2 models for meaningful deviation calculation, got {len(model_files)}")
-    
     if not trajectory_file:
         raise ValueError("Trajectory file path is required")
-    
     if not output_file:
         raise ValueError("Output file path is required")
-    
-    logger.info(f"Calculating MACE model deviation with {len(model_files)} models on device: {device}")
-    
-    if not os.path.exists(trajectory_file):
-        raise FileNotFoundError(f"Trajectory file not found: {trajectory_file}")
-    
-    # Validate model files exist
-    missing_models = [f for f in model_files if not os.path.exists(f)]
-    if missing_models:
-        raise FileNotFoundError(f"Model files not found: {missing_models}")
-    
-    # Check if MACE is available
-    try:
-        import torch
-        from mace import data
-        from mace.tools import torch_tools, utils, torch_geometric
-        logger.info("MACE package found - using proper MACE evaluation approach")
-    except ImportError as e:
-        logger.error(f"MACE package not found: {e}")
-        logger.error("Cannot calculate model deviation without MACE - this is required for MACE workflows")
-        raise ImportError(f"MACE packages required for model deviation calculation: {e}")
     
     try:
         from .utils import load_mace_models, read_trajectory, write_model_deviation
@@ -96,13 +79,9 @@ def calculate_mace_model_deviation(
         device_obj = torch_tools.init_device(device)
         device_str = str(device_obj).replace('cuda:', 'cuda')  # Convert to string for compatibility
         
-        # Load MACE models with optional CuEq acceleration
+        # Load MACE models and trajectory
         models = load_mace_models(model_files, device=device_str, default_dtype=default_dtype, enable_cueq=enable_cueq)
-        logger.info(f"Loaded {len(models)} MACE models on {device_obj}")
-        
-        # Read trajectory
         frames = read_trajectory(trajectory_file, type_map)
-        logger.info(f"Read {len(frames)} frames from trajectory")
         
         # Calculate model deviations using proper MACE pipeline
         deviations = _calculate_frame_deviations_mace(
@@ -111,32 +90,12 @@ def calculate_mace_model_deviation(
         
         # Write results
         write_model_deviation(deviations, output_file)
-        logger.info(f"Model deviation written to: {output_file}")
         
         return output_file
         
     except Exception as e:
         logger.error(f"MACE model deviation calculation failed: {e}")
         raise RuntimeError(f"MACE model deviation calculation failed: {e}")
-
-
-def _validate_device(device: str) -> str:
-    """Validate and adjust device based on availability"""
-    if device == 'cuda':
-        if not torch.cuda.is_available():
-            logger.warning("CUDA requested but not available, falling back to CPU")
-            return 'cpu'
-        else:
-            logger.info(f"CUDA available: {torch.cuda.device_count()} device(s)")
-            return device
-    elif device == 'mps':
-        if not torch.backends.mps.is_available():
-            logger.warning("MPS requested but not available, falling back to CPU")
-            return 'cpu'
-        else:
-            return device
-    else:
-        return 'cpu'
 
 
 def _calculate_frame_deviations_mace(
@@ -157,17 +116,12 @@ def _calculate_frame_deviations_mace(
     Returns:
         List of deviation statistics per frame (DeepMD format)
     """
-    from mace import data
-    from mace.tools import torch_geometric, utils, torch_tools
-    
     n_frames = len(frames)
     all_energies = []
     all_forces = []
     
     # Get predictions from each model
     for model_idx, model in enumerate(models):
-        logger.info(f"Evaluating model {model_idx + 1}/{len(models)}")
-        
         # Extract model properties (exactly like eval_configs.py)
         z_table = utils.AtomicNumberTable([int(z) for z in model.atomic_numbers])  # type: ignore[attr-defined]
         cutoff = float(model.r_max)  # type: ignore[attr-defined,arg-type]
@@ -176,8 +130,6 @@ def _calculate_frame_deviations_mace(
             heads = model.heads  # type: ignore[attr-defined] 
         except AttributeError:
             heads = None
-            
-        logger.info(f"Model properties - atomic numbers: {z_table.zs}, cutoff: {cutoff}, heads: {heads}")
         
         # Convert ASE atoms to MACE configurations (following eval_configs.py exactly)
         configs = [data.config_from_atoms(atoms) for atoms in frames]
@@ -266,9 +218,5 @@ def _calculate_frame_deviations_mace(
         }
         
         frame_deviations.append(frame_deviation)
-        
-        # Progress logging
-        if (frame_idx + 1) % 100 == 0:
-            logger.info(f"Processed {frame_idx + 1}/{len(frames)} frames")
     
     return frame_deviations

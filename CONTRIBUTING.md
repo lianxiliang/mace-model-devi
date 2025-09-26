@@ -3,35 +3,59 @@
 ## Development Setup
 
 ```bash
-git clone https://github.com/lianxiliang/mace-model-deviation.git
-cd mace-model-deviation
+git clone https://github.com/lianxiliang/mace-model-devi.git
+cd mace-model-devi
 pip install -e ".[dev]"
+```
+
+## Code Style
+
+We use:
+- Black for code formatting
+- isort for import sorting
+- mypy for type checking
+
+```bash
+# Format code
+black src/
+isort src/
+
+# Type checking
+mypy src/
 ```
 
 ## Testing
 
 ```bash
 # Test with sample data
-mace-model-devi --models model1.pt model2.pt --traj trajectory.xyz --output test.out
+mace-model-devi --models model1.model model2.model --traj trajectory.xyz --output test.out
 
 # Test Python API
 python -c "from mace_model_deviation import calculate_mace_model_deviation; print('Import successful')"
+
+# Run unit tests (if available)
+pytest tests/
 ```
 
-## Integration with ai2-kit
+## Integration with AI2Kit
 
-After installing the package, ai2-kit will automatically use it for MACE model deviation calculations in SLURM environments.
+The package is designed to integrate seamlessly with AI2Kit MACE workflows:
 
-## Docker Integration
-
-Add to your Dockerfile:
-```dockerfile
-RUN pip install git+https://github.com/lianxiliang/mace-model-deviation.git
+```python
+# In ai2kit macelmp.py
+mace_cmd = f'mace-model-devi --models "{models}" --traj traj.lammpstrj --output model_devi.out --device cuda'
 ```
 
 ## Release Process
 
-1. Update version in `pyproject.toml` and `setup.py`
-2. Create git tag: `git tag v0.1.0`
-3. Push tag: `git push origin v0.1.0`
-4. GitHub Actions will handle the rest (if configured)
+1. Update version in `pyproject.toml`  
+2. Update `__version__` in `src/mace_model_deviation/__init__.py`
+3. Create git tag: `git tag v0.1.0`
+4. Push tag: `git push origin v0.1.0`
+
+## Guidelines
+
+- Follow MACE's official evaluation patterns from `eval_configs.py`
+- Maintain DeepMD output format compatibility
+- Write comprehensive docstrings
+- Test with real AI2Kit models when possible
