@@ -4,6 +4,7 @@ Command-line interface for MACE model deviation calculation
 
 import argparse
 import logging
+import os
 import sys
 from typing import List, Optional
 
@@ -22,11 +23,11 @@ Examples:
   # Basic usage
   mace-model-devi --models model1.model model2.model model3.model --traj trajectory.xyz --output model_devi.out
 
-  # With GPU device specification and CuEq acceleration
-  mace-model-devi --models *.model --traj traj.lammpstrj --output results.out --device cuda --enable-cueq
+  # With GPU device specification and type mapping
+  mace-model-devi --models *.model --traj traj.lammpstrj --output results.out --device cuda --type-map O,H
 
-  # With type mapping and float32 precision
-  mace-model-devi --models *.model --traj trajectory.xyz --output model_devi.out --type-map O,H --default-dtype float32
+  # Shell script example:
+  # lmp -i lammps.input && mace-model-devi --models /path/to/model1.model /path/to/model2.model --traj traj.lammpstrj --output model_devi.out
         """
     )
     
@@ -109,13 +110,18 @@ def main() -> int:
         logger = logging.getLogger(__name__)
         
         logger.info("MACE Model Deviation Calculator v0.1.0")
-        logger.info(f"Models: {len(args.models)} files")
+        
+        # Use provided model paths directly (intelligent selection done by caller)
+        selected_models = args.models
+        logger.info(f"Models: {len(selected_models)} files specified")
+        
+        for model_path in selected_models:
+            logger.info(f"Using model: {os.path.basename(model_path)}")
+        
         logger.info(f"Trajectory: {args.traj}")
         logger.info(f"Output: {args.output}")
         logger.info(f"Device: {args.device}")
         logger.info(f"Default dtype: {args.default_dtype}")
-        if args.enable_cueq:
-            logger.info("CuEq acceleration: ENABLED")
         
         # Parse type map
         type_map = None
@@ -125,7 +131,7 @@ def main() -> int:
         
         # Run calculation
         output_file = calculate_mace_model_deviation(
-            model_files=args.models,
+            model_files=selected_models,
             trajectory_file=args.traj,
             output_file=args.output,
             type_map=type_map,

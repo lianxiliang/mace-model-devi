@@ -114,7 +114,6 @@ RUN pip install -e /opt/mace-model-deviation
 ## Authors
 
 - **Xiliang LIAN** - *Initial development and MACE integration*
-- **AI2-Kit Contributors** - *Framework and methodology*
 
 ## Credits
 
