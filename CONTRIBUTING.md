@@ -43,7 +43,7 @@ The package is designed to integrate seamlessly with AI2Kit MACE workflows:
 
 ```python
 # In ai2kit macelmp.py
-mace_cmd = f'mace-model-devi --models "{models}" --traj traj.lammpstrj --output model_devi.out --device cuda'
+mace_cmd = f'mace-model-devi --models {models} --traj traj.lammpstrj --output model_devi.out --device cuda'
 ```
 
 ## Release Process
